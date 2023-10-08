@@ -38,7 +38,9 @@ static inline void setup_transfer_buffer(uint32_t node_count) {
     #elif V8_MAJOR_VERSION < 8 || (V8_MAJOR_VERSION == 8 && V8_MINOR_VERSION < 4) || (defined(_MSC_VER) && NODE_RUNTIME_ELECTRON)
       auto js_transfer_buffer = ArrayBuffer::New(Isolate::GetCurrent(), transfer_buffer, transfer_buffer_length * sizeof(uint32_t));
     #else
-      auto backing_store = ArrayBuffer::NewBackingStore(transfer_buffer, transfer_buffer_length * sizeof(uint32_t), BackingStore::EmptyDeleter, nullptr);
+      // auto backing_store = ArrayBuffer::NewBackingStore(transfer_buffer, transfer_buffer_length * sizeof(uint32_t), BackingStore::EmptyDeleter, nullptr);
+      auto backing_store = ArrayBuffer::NewBackingStore(Isolate::GetCurrent(), transfer_buffer_length * sizeof(uint32_t));
+      // auto js_transfer_buffer = ArrayBuffer::New(Isolate::GetCurrent(), std::move(backing_store));
       auto js_transfer_buffer = ArrayBuffer::New(Isolate::GetCurrent(), std::move(backing_store));
     #endif
 

@@ -9,6 +9,29 @@ namespace node_tree_sitter {
 
 using namespace v8;
 
+// Define a custom ArrayBuffer allocator
+class MyArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
+ public:
+  virtual void* Allocate(size_t length) {
+    // Allocate memory for the ArrayBuffer within the sandbox
+    return AllocateUninitialized(length); // Use AllocateUninitialized for initialization
+  }
+
+  virtual void* AllocateUninitialized(size_t length) {
+    // Allocate uninitialized memory for the ArrayBuffer within the sandbox
+    return malloc(length);
+  }
+
+  virtual void Free(void* data, size_t length) {
+    // Free the memory within the sandbox when the ArrayBuffer is no longer needed
+    free(data);
+  }
+};
+
+
+// Create an instance of the custom allocator
+static MyArrayBufferAllocator my_allocator;
+
 Nan::Persistent<String> row_key;
 Nan::Persistent<String> column_key;
 Nan::Persistent<String> start_index_key;
@@ -36,8 +59,15 @@ void InitConversions(Local<Object> exports) {
     v8::Local<v8::ArrayBuffer> js_point_transfer_buffer = nodeBuffer.As<v8::TypedArray>()->Buffer();
   #elif V8_MAJOR_VERSION < 8 || (V8_MAJOR_VERSION == 8 && V8_MINOR_VERSION < 4) || (defined(_MSC_VER) && NODE_RUNTIME_ELECTRON)
     auto js_point_transfer_buffer = ArrayBuffer::New(Isolate::GetCurrent(), point_transfer_buffer, 2 * sizeof(uint32_t));
+  #elif V8_MAJOR_VERSION == 8
+    // Use the custom allocator when creating ArrayBuffer
+    // auto backing_store = ArrayBuffer::NewBackingStore(point_transfer_buffer, 2 * sizeof(uint32_t), BackingStore::EmptyDeleter, nullptr, &my_allocator);
+    auto backing_store = ArrayBuffer::NewBackingStore(Isolate::GetCurrent(), 2 * sizeof(uint32_t));
+    auto js_point_transfer_buffer = ArrayBuffer::New(Isolate::GetCurrent(), std::move(backing_store));
   #else
-    auto backing_store = ArrayBuffer::NewBackingStore(point_transfer_buffer, 2 * sizeof(uint32_t), BackingStore::EmptyDeleter, nullptr);
+    auto backing_store = ArrayBuffer::NewBackingStore(Isolate::GetCurrent(), 2 * sizeof(uint32_t));
+    // auto backing_store = ArrayBuffer::NewBackingStore(point_transfer_buffer, 2 * sizeof(uint32_t), BackingStore::EmptyDeleter,                nullptr, &my_allocator);
+                                      // NewBackingStore (void *data,           size_t byte_length,   v8::BackingStore::DeleterCallback deleter, void *deleter_data)
     auto js_point_transfer_buffer = ArrayBuffer::New(Isolate::GetCurrent(), std::move(backing_store));
   #endif
 
